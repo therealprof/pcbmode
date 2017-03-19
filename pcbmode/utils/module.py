@@ -86,8 +86,30 @@ class Module():
              element.set('{'+config.cfg['ns']['pcbmode']+'}pcb-layer', pcb_layer)
              self._masks[pcb_layer] = element
 
-        self._placeOutline()
-        self._placeOutlineDimensions()
+        # Print what's not going to be placed:
+        to_print = ''
+        for item in config.brd['layer-control']:
+            if item == 'conductor':
+                pass
+            else:
+                if config.brd['layer-control'][item]['place'] == False:
+                    to_print += item + ', '
+
+        if to_print != '':
+            msg.subInfo('The following will NOT be placed:')
+            msg.subInfo("  " + to_print[:-2])
+
+
+
+        if config.brd['layer-control']['outline']['place'] == True:
+            self._placeOutline()
+        else:
+            msg.subInfo('NOT placing outline')
+
+        if config.brd['layer-control']['dimensions']['place'] == True:
+            self._placeOutlineDimensions()
+        else:
+            msg.subInfo('NOT placing dimensions')
 
         msg.subInfo('Placing components:', newline=False)
         self._placeComponents(components=self._components, 
@@ -95,8 +117,11 @@ class Module():
                               print_refdef=True)
         sys.stdout.write("\n")
 
-        msg.subInfo('Placing routes')
-        self._placeRouting()
+        if config.brd['layer-control']['conductor']['routing']['place'] == True:
+            msg.subInfo('Placing routes')
+            self._placeRouting()
+        else:
+            msg.subInfo('NOT placing routes')
 
         msg.subInfo('Placing vias')
         self._placeComponents(components=self._vias, 
@@ -108,37 +133,40 @@ class Module():
                               component_type='shape',
                               print_refdef=False)
 
-        if config.tmp['no-docs'] == False:
+        if (config.brd['layer-control']['documentation']['place'] == True):
             msg.subInfo('Placing documentation')
             self._placeDocs()
+        else:
+            msg.subInfo('NOT placing documentation')
 
         if config.tmp['no-drill-index'] == False:
             msg.subInfo('Placing drill index')
             self._placeDrillIndex()
+        else:
+            msg.subInfo('NOT placing drill index')
 
         if config.tmp['no-layer-index'] == False:
             msg.subInfo('Placing layer index')
             self._placeLayerIndex()
+        else:
+            msg.subInfo('NOT placing layer index')
 
 
-        # This 'cover' "enables" the mask shapes defined in the mask are
-        # shown. It *must* be the last element in the mask definition;
-        # any mask element after it won't show
-        for pcb_layer in config.stk['layer-names']:
-            if utils.checkForPoursInLayer(pcb_layer) is True:
-                mask_cover = et.SubElement(self._masks[pcb_layer], 'rect',
-                                           x="%s" % str(-self._width/2), 
-                                           y="%s" % str(-self._height/2),
-                                           width="%s" % self._width,
-                                           height="%s" % self._height,
-                                           style="fill:#fff;")
-                # This tells the Gerber conversion to ignore this shape
-                mask_cover.set('{'+config.cfg['ns']['pcbmode']+'}type', 'mask-cover')
 
-
-        # Remove layers that were not made to be 'placed'. This
-        # is a bit of a cheat, but it works for now.
-        # TODO ;)
+        if config.brd['layer-control']['conductor']['pours']['place'] == True:
+            # This 'cover' "enables" the mask shapes defined in the mask are
+            # shown. It *must* be the last element in the mask definition;
+            # any mask element after it won't show
+            for pcb_layer in config.stk['layer-names']:
+                if utils.checkForPoursInLayer(pcb_layer) is True:
+                    mask_cover = et.SubElement(self._masks[pcb_layer], 'rect',
+                                               x="%s" % str(-self._width/2), 
+                                               y="%s" % str(-self._height/2),
+                                               width="%s" % self._width,
+                                               height="%s" % self._height,
+                                               style="fill:#fff;")
+                    # This tells the Gerber conversion to ignore this shape
+                    mask_cover.set('{'+config.cfg['ns']['pcbmode']+'}type', 'mask-cover')
 
 
         # Output SVG
@@ -287,236 +315,239 @@ class Module():
                 there_are_pours = utils.checkForPoursInLayer(pcb_layer)
 
                 # Copper
-                shapes = shapes_dict['conductor'].get(pcb_layer) or []
-
-                if len(shapes) > 0:
-
-                    svg_layer = self._layers[pcb_layer]['conductor']['pads']['layer']
+                if config.brd['layer-control']['conductor']['pads']['place'] == True:
+                    shapes = shapes_dict['conductor'].get(pcb_layer) or []
      
-                    transform = "translate(%s,%s)" % (location[0],
-                                                      config.cfg['invert-y']*location[1])
-
-                    shape_group = et.SubElement(svg_layer, 'g', 
-                                                transform=transform)
-
-
-                    shape_group.set('{'+config.cfg['ns']['pcbmode']+'}type', component_type)
-                    # Add the reference designator as well if it's a
-                    # 'component'
-                    if component_type == 'component':
-                        shape_group.set('{'+config.cfg['ns']['pcbmode']+'}refdef', component.getRefdef())
-
-                    style = utils.dictToStyleText(config.stl['layout']['conductor']['pads']['labels'])
-                    label_group = et.SubElement(shape_group, 'g', style=style)
-
-                    for shape in shapes:
-                        place.placeShape(shape, shape_group, invert)
-
-                        # Add pin labels
-                        # TODO: This isn't perfect, but good enough for now
-                        label = shape.getLabel()
-                        if label != None:
-                            label_location = shape.getLocation()
-                            label_rotation = shape.getRotation()
-                            label_transform = "rotate(%s)" % label_rotation
-                            t = et.SubElement(label_group, 'text',
-                                              x=str(((1,-1)[invert])*label_location.x),
-                                              y=str(config.cfg['invert-y']*label_location.y),
-                                              transform=label_transform)
-                            t.text = label
-
-
-                        if there_are_pours == True:
-                            mask_group = et.SubElement(self._masks[pcb_layer], 'g', 
-                                                       transform=transform)
-                            self._placeMask(mask_group, 
-                                            shape,
-                                            'pad',
-                                            original=False,
-                                            mirror=invert)
+                    if len(shapes) > 0:
+     
+                        svg_layer = self._layers[pcb_layer]['conductor']['pads']['layer']
+         
+                        transform = "translate(%s,%s)" % (location[0],
+                                                          config.cfg['invert-y']*location[1])
+     
+                        shape_group = et.SubElement(svg_layer, 'g', 
+                                                    transform=transform)
+     
+     
+                        shape_group.set('{'+config.cfg['ns']['pcbmode']+'}type', component_type)
+                        # Add the reference designator as well if it's a
+                        # 'component'
+                        if component_type == 'component':
+                            shape_group.set('{'+config.cfg['ns']['pcbmode']+'}refdef', component.getRefdef())
+     
+                        style = utils.dictToStyleText(config.stl['layout']['conductor']['pads']['labels'])
+                        label_group = et.SubElement(shape_group, 'g', style=style)
+     
+                        for shape in shapes:
+                            place.placeShape(shape, shape_group, invert)
+     
+                            # Add pin labels
+                            # TODO: This isn't perfect, but good enough for now
+                            label = shape.getLabel()
+                            if label != None:
+                                label_location = shape.getLocation()
+                                label_rotation = shape.getRotation()
+                                label_transform = "rotate(%s)" % label_rotation
+                                t = et.SubElement(label_group, 'text',
+                                                  x=str(((1,-1)[invert])*label_location.x),
+                                                  y=str(config.cfg['invert-y']*label_location.y),
+                                                  transform=label_transform)
+                                t.text = label
+     
+     
+                            if there_are_pours == True:
+                                mask_group = et.SubElement(self._masks[pcb_layer], 'g', 
+                                                           transform=transform)
+                                self._placeMask(mask_group, 
+                                                shape,
+                                                'pad',
+                                                original=False,
+                                                mirror=invert)
 
                 # Pours
-                shapes = shapes_dict['pours'].get(pcb_layer) or []
-                try:
-                    svg_layer = self._layers[pcb_layer]['conductor']['pours']['layer']
-                except:
-                    svg_layer = None
-
-                if len(shapes) > 0 and svg_layer != None:
-                    shape_group = et.SubElement(svg_layer, 'g',
-                                                mask='url(#mask-%s)' % pcb_layer)
-                    transform = "translate(%s,%s)" % (location[0],
-                                                      config.cfg['invert-y']*location[1])
-                    group = et.SubElement(shape_group, 'g', transform=transform)
-                    group.set('{'+config.cfg['ns']['pcbmode']+'}type', 'pours')
-                    for shape in shapes:
-                        placed_element = place.placeShape(shape, group, invert)
-
+                if config.brd['layer-control']['conductor']['pours']['place'] == True:
+                    shapes = shapes_dict['pours'].get(pcb_layer) or []
+                    try:
+                        svg_layer = self._layers[pcb_layer]['conductor']['pours']['layer']
+                    except:
+                        svg_layer = None
+     
+                    if len(shapes) > 0 and svg_layer != None:
+                        shape_group = et.SubElement(svg_layer, 'g',
+                                                    mask='url(#mask-%s)' % pcb_layer)
+                        transform = "translate(%s,%s)" % (location[0],
+                                                          config.cfg['invert-y']*location[1])
+                        group = et.SubElement(shape_group, 'g', transform=transform)
+                        group.set('{'+config.cfg['ns']['pcbmode']+'}type', 'pours')
+                        for shape in shapes:
+                            placed_element = place.placeShape(shape, group, invert)
 
 
 
                 # Soldermask
-                shapes = shapes_dict['soldermask'].get(pcb_layer) or []
-                try:
-                    svg_layer = self._layers[pcb_layer]['soldermask']['layer']
-                except:
-                    svg_layer = None
-
-                if len(shapes) > 0 and svg_layer != None:
-                    transform = "translate(%s,%s)" % (location[0],
-                                                      config.cfg['invert-y']*location[1])
-                    group = et.SubElement(svg_layer, 'g', transform=transform)
-                    group.set('{'+config.cfg['ns']['pcbmode']+'}type', 'component-shapes')
-                    for shape in shapes:
-                        placed_element = place.placeShape(shape, group, invert)
+                if config.brd['layer-control']['soldermask']['place'] == True:
+                    shapes = shapes_dict['soldermask'].get(pcb_layer) or []
+                    try:
+                        svg_layer = self._layers[pcb_layer]['soldermask']['layer']
+                    except:
+                        svg_layer = None
+     
+                    if len(shapes) > 0 and svg_layer != None:
+                        transform = "translate(%s,%s)" % (location[0],
+                                                          config.cfg['invert-y']*location[1])
+                        group = et.SubElement(svg_layer, 'g', transform=transform)
+                        group.set('{'+config.cfg['ns']['pcbmode']+'}type', 'component-shapes')
+                        for shape in shapes:
+                            placed_element = place.placeShape(shape, group, invert)
 
      
                 # Solderpaste
-                shapes = shapes_dict['solderpaste'].get(pcb_layer) or []
-                try:
-                    svg_layer = self._layers[pcb_layer]['solderpaste']['layer']
-                except:
-                    svg_layer = None
-
-                if len(shapes) > 0 and svg_layer != None:
-                    transform = "translate(%s,%s)" % (location[0],
-                                                      config.cfg['invert-y']*location[1])
-                    group = et.SubElement(svg_layer, 'g', transform=transform)
-                    group.set('{'+config.cfg['ns']['pcbmode']+'}type', 'component-shapes')
-                    for shape in shapes:
-                        placed_element = place.placeShape(shape, group, invert)
+                if config.brd['layer-control']['solderpaste']['place'] == True:
+                    shapes = shapes_dict['solderpaste'].get(pcb_layer) or []
+                    try:
+                        svg_layer = self._layers[pcb_layer]['solderpaste']['layer']
+                    except:
+                        svg_layer = None
+     
+                    if len(shapes) > 0 and svg_layer != None:
+                        transform = "translate(%s,%s)" % (location[0],
+                                                          config.cfg['invert-y']*location[1])
+                        group = et.SubElement(svg_layer, 'g', transform=transform)
+                        group.set('{'+config.cfg['ns']['pcbmode']+'}type', 'component-shapes')
+                        for shape in shapes:
+                            placed_element = place.placeShape(shape, group, invert)
 
 
 
                 # Silkscreen
-                shapes = shapes_dict['silkscreen'].get(pcb_layer) or []
-                try:
-                    svg_layer = self._layers[pcb_layer]['silkscreen']['layer']
-                except:
-                    svg_layer = None
-
-                if len(shapes) > 0 and svg_layer != None:
-                    transform = "translate(%s,%s)" % (location[0],
-                                                      config.cfg['invert-y']*location[1])
-                    shape_group = et.SubElement(svg_layer, 'g', transform=transform)
-                    shape_group.set('{'+config.cfg['ns']['pcbmode']+'}type', 'component-shapes')
+                if config.brd['layer-control']['silkscreen']['place'] == True:
+                    shapes = shapes_dict['silkscreen'].get(pcb_layer) or []
+                    try:
+                        svg_layer = self._layers[pcb_layer]['silkscreen']['layer']
+                    except:
+                        svg_layer = None
      
-                    for shape in shapes:
-                        # Refdefs need to be in their own groups so that their
-                        # location can later be extracted, hence this...
-                        try:
-                            is_refdef = getattr(shape, 'is_refdef')
-                        except:
-                            is_refdef = False
-
-                        if is_refdef == True:
-                            # Shapes don't need to have silkscreen
-                            # reference designators
-                            if component_type != 'shape':
-                                refdef_group = et.SubElement(svg_layer, 'g', transform=transform)
-                                refdef_group.set('{'+config.cfg['ns']['pcbmode']+'}type', 'refdef')
-                                refdef_group.set('{'+config.cfg['ns']['pcbmode']+'}refdef', refdef)
-                                placed_element = place.placeShape(shape, refdef_group, invert)
-                        else:
-                            placed_element = place.placeShape(shape, shape_group, invert)
+                    if len(shapes) > 0 and svg_layer != None:
+                        transform = "translate(%s,%s)" % (location[0],
+                                                          config.cfg['invert-y']*location[1])
+                        shape_group = et.SubElement(svg_layer, 'g', transform=transform)
+                        shape_group.set('{'+config.cfg['ns']['pcbmode']+'}type', 'component-shapes')
+         
+                        for shape in shapes:
+                            # Refdefs need to be in their own groups so that their
+                            # location can later be extracted, hence this...
+                            try:
+                                is_refdef = getattr(shape, 'is_refdef')
+                            except:
+                                is_refdef = False
+     
+                            if is_refdef == True:
+                                # Shapes don't need to have silkscreen
+                                # reference designators
+                                if component_type != 'shape':
+                                    refdef_group = et.SubElement(svg_layer, 'g', transform=transform)
+                                    refdef_group.set('{'+config.cfg['ns']['pcbmode']+'}type', 'refdef')
+                                    refdef_group.set('{'+config.cfg['ns']['pcbmode']+'}refdef', refdef)
+                                    placed_element = place.placeShape(shape, refdef_group, invert)
+                            else:
+                                placed_element = place.placeShape(shape, shape_group, invert)
 
 
 
                 # Assembly
-                shapes = shapes_dict['assembly'].get(pcb_layer) or []
-                try:
-                    svg_layer = self._layers[pcb_layer]['assembly']['layer']
-                except:
-                    svg_layer = None
-
-                if len(shapes) > 0 and svg_layer != None: 
-                    transform = "translate(%s,%s)" % (location[0],
-                                                      config.cfg['invert-y']*location[1])
-                    group = et.SubElement(svg_layer, 'g', transform=transform)
-                    for shape in shapes:
-                        placed_element = place.placeShape(shape, group, invert)
-
-
-
+                if config.brd['layer-control']['assembly']['place'] == True:
+                    shapes = shapes_dict['assembly'].get(pcb_layer) or []
+                    try:
+                        svg_layer = self._layers[pcb_layer]['assembly']['layer']
+                    except:
+                        svg_layer = None
+                     
+                    if len(shapes) > 0 and svg_layer != None: 
+                        transform = "translate(%s,%s)" % (location[0],
+                                                          config.cfg['invert-y']*location[1])
+                        group = et.SubElement(svg_layer, 'g', transform=transform)
+                        for shape in shapes:
+                            placed_element = place.placeShape(shape, group, invert)
 
 
                 # Drills
-                shapes = shapes_dict['drills'].get(pcb_layer) or []
-                if len(shapes) > 0:
-                    svg_layer = self._layers['drills']['layer']
-                    transform = "translate(%s,%s)" % (location[0],
-                                                      config.cfg['invert-y']*location[1])
-                    group = et.SubElement(svg_layer, 'g', transform=transform)
-                    group.set('{'+config.cfg['ns']['pcbmode']+'}type', 'component-shapes')
-                    for shape in shapes:
-                        placed_element = place.placeShape(shape, group, invert)
-                        placed_element.set('{'+config.cfg['ns']['pcbmode']+'}diameter',
-                                           str(shape.getDiameter()))
+                if config.brd['layer-control']['drills']['place'] == True:
+                    shapes = shapes_dict['drills'].get(pcb_layer) or []
+                    if len(shapes) > 0:
+                        svg_layer = self._layers['drills']['layer']
+                        transform = "translate(%s,%s)" % (location[0],
+                                                          config.cfg['invert-y']*location[1])
+                        group = et.SubElement(svg_layer, 'g', transform=transform)
+                        group.set('{'+config.cfg['ns']['pcbmode']+'}type', 'component-shapes')
+                        for shape in shapes:
+                            placed_element = place.placeShape(shape, group, invert)
+                            placed_element.set('{'+config.cfg['ns']['pcbmode']+'}diameter',
+                                               str(shape.getDiameter()))
 
 
             # Place component origin marker
-            svg_layer = self._layers[placement_layer]['placement']['layer']
-
-            # Here pcb_layer may not exist for components that define
-            # shapes for internal layers but only surface layers are
-            # defined in the stackup
-            try:
-                group = et.SubElement(svg_layer, 'g', transform=transform)
-            except:
-                return
-
-            # Add PCBmodE information, useful for when extracting
-            group.set('{'+config.cfg['ns']['pcbmode']+'}type', component_type)
-            group.set('{'+config.cfg['ns']['pcbmode']+'}footprint', component.getFootprintName())
-            if (component_type == 'component') or (component_type == 'shape'):
-                group.set('{'+config.cfg['ns']['pcbmode']+'}refdef', refdef)
-            elif (component_type == 'via'):
-                group.set('{'+config.cfg['ns']['pcbmode']+'}id', refdef)
-            else:
-                pass
-
-            path = svg.placementMarkerPath()
-            transform = "translate(%s,%s)" % (location[0],
-                                              config.cfg['invert-y']*location[1])
-
-            if placement_layer == 'bottom':
-                rotation *= -1
-
-            marker_element = et.SubElement(group, 'path',
-                                           d=path,
-                                           transform="rotate(%s)" % rotation)
-
-            if (component_type == 'component'):
-                style = utils.dictToStyleText(config.stl['layout']['placement']['text'])
+            if config.brd['layer-control']['placement']['place'] == True:
+                svg_layer = self._layers[placement_layer]['placement']['layer']
      
-                t = et.SubElement(group, 'text', x="0", y="-0.17", style=style)
-                ts = et.SubElement(t, 'tspan', x="0", dy="0.1")
-                ts.text = "%s" % (refdef)
-                ts = et.SubElement(t, 'tspan', x="0", dy="0.1")
-                ts.text = htmlpar.unescape("%s&#176;" % (rotation))
-                ts = et.SubElement(t, 'tspan', x="0", dy="0.1")
-                ts.text = "[%.2f,%.2f]" % (location[0], location[1])
-            elif (component_type == 'shape'):
-                style = utils.dictToStyleText(config.stl['layout']['placement']['text'])
+                # Here pcb_layer may not exist for components that define
+                # shapes for internal layers but only surface layers are
+                # defined in the stackup
+                try:
+                    group = et.SubElement(svg_layer, 'g', transform=transform)
+                except:
+                    return
      
-                t = et.SubElement(group, 'text', x="0", y="-0.17", style=style)
-                ts = et.SubElement(t, 'tspan', x="0", dy="0.1")
-                ts.text = "%s" % (refdef)
-                ts = et.SubElement(t, 'tspan', x="0", dy="0.1")
-                ts.text = htmlpar.unescape("%s&#176;" % (rotation))
-                ts = et.SubElement(t, 'tspan', x="0", dy="0.1")
-                ts.text = "[%.2f,%.2f]" % (location[0], location[1])
-            elif (component_type == 'via'):
-                style = utils.dictToStyleText(config.stl['layout']['placement']['text'])
+                # Add PCBmodE information, useful for when extracting
+                group.set('{'+config.cfg['ns']['pcbmode']+'}type', component_type)
+                group.set('{'+config.cfg['ns']['pcbmode']+'}footprint', component.getFootprintName())
+                if (component_type == 'component') or (component_type == 'shape'):
+                    group.set('{'+config.cfg['ns']['pcbmode']+'}refdef', refdef)
+                elif (component_type == 'via'):
+                    group.set('{'+config.cfg['ns']['pcbmode']+'}id', refdef)
+                else:
+                    pass
      
-                t = et.SubElement(group, 'text', x="0", y="-0.11", style=style)
-                ts = et.SubElement(t, 'tspan', x="0", dy="0.1")
-                ts.text = htmlpar.unescape("%s&#176;" % (rotation))
-                ts = et.SubElement(t, 'tspan', x="0", dy="0.1")
-                ts.text = "[%.2f,%.2f]" % (location[0], location[1])
-            else:
-                continue
-
+                path = svg.placementMarkerPath()
+                transform = "translate(%s,%s)" % (location[0],
+                                                  config.cfg['invert-y']*location[1])
+     
+                if placement_layer == 'bottom':
+                    rotation *= -1
+     
+                marker_element = et.SubElement(group, 'path',
+                                               d=path,
+                                               transform="rotate(%s)" % rotation)
+     
+                if (component_type == 'component'):
+                    style = utils.dictToStyleText(config.stl['layout']['placement']['text'])
+         
+                    t = et.SubElement(group, 'text', x="0", y="-0.17", style=style)
+                    ts = et.SubElement(t, 'tspan', x="0", dy="0.1")
+                    ts.text = "%s" % (refdef)
+                    ts = et.SubElement(t, 'tspan', x="0", dy="0.1")
+                    ts.text = htmlpar.unescape("%s&#176;" % (rotation))
+                    ts = et.SubElement(t, 'tspan', x="0", dy="0.1")
+                    ts.text = "[%.2f,%.2f]" % (location[0], location[1])
+                elif (component_type == 'shape'):
+                    style = utils.dictToStyleText(config.stl['layout']['placement']['text'])
+         
+                    t = et.SubElement(group, 'text', x="0", y="-0.17", style=style)
+                    ts = et.SubElement(t, 'tspan', x="0", dy="0.1")
+                    ts.text = "%s" % (refdef)
+                    ts = et.SubElement(t, 'tspan', x="0", dy="0.1")
+                    ts.text = htmlpar.unescape("%s&#176;" % (rotation))
+                    ts = et.SubElement(t, 'tspan', x="0", dy="0.1")
+                    ts.text = "[%.2f,%.2f]" % (location[0], location[1])
+                elif (component_type == 'via'):
+                    style = utils.dictToStyleText(config.stl['layout']['placement']['text'])
+         
+                    t = et.SubElement(group, 'text', x="0", y="-0.11", style=style)
+                    ts = et.SubElement(t, 'tspan', x="0", dy="0.1")
+                    ts.text = htmlpar.unescape("%s&#176;" % (rotation))
+                    ts = et.SubElement(t, 'tspan', x="0", dy="0.1")
+                    ts.text = "[%.2f,%.2f]" % (location[0], location[1])
+                else:
+                    continue
 
 
 
