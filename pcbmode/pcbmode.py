@@ -306,48 +306,9 @@ def makeConfig(name, version, cmdline_args):
         for k in config_dict.keys():
             board_dict[k] = (board_dict.get(k) or config_dict[k])
 
-    #-----------------------------------------------------------------
-    # Commandline overrides
-    #-----------------------------------------------------------------
-    # These are stored in a temporary dictionary so that they are not
-    # written to the config file when the board's configuration is
-    # dumped, with extraction, for example
-    #-----------------------------------------------------------------
-    config.tmp = {}
-    config.tmp['no-layer-index'] = (cmdline_args.no_layer_index or
-                                    config.brd['config'].get('no-layer-index') or
-                                    False)
-    config.tmp['no-flashes'] = (cmdline_args.no_flashes or
-                                config.brd['config'].get('no-flashes') or
-                                False)
-    config.tmp['no-docs'] = (cmdline_args.no_docs or
-                             config.brd['config'].get('no-docs') or
-                             False)
-    config.tmp['no-drill-index'] = (cmdline_args.no_drill_index or
-                                    config.brd['config'].get('no-drill-index') or
-                                    False)
-
-
-    # Define Gerber setting from board's config or defaults
-    try:
-        tmp = config.brd['gerber']
-    except:
-        config.brd['gerber'] = {}
-    gd = config.brd['gerber']    
-    gd['decimals'] = config.brd['gerber'].get('decimals') or 6
-    gd['digits'] = config.brd['gerber'].get('digits') or 6
-    gd['steps-per-segment'] = config.brd['gerber'].get('steps-per-segment') or 100
-    gd['min-segment-length'] = config.brd['gerber'].get('min-segment-length') or 0.05
-
-    # Inkscape inverts the 'y' axis for some historical reasons.
-    # This means that we need to invert it as well. This should
-    # be the only place this inversion happens so it's easy to
-    # control if things change.
-    config.cfg['invert-y'] = -1
-
 
     #-----------------------------------------------------------------
-    # Commandline overrides
+    # layer-control overrides
     #-----------------------------------------------------------------
     # Controls the visibility of layers and whether they are locked by
     # default. This is the "master" control; settings in the board's
@@ -380,6 +341,51 @@ def makeConfig(name, version, cmdline_args):
     else:
         config.brd['layer-control'] = layer_control_default
 
+
+    #-----------------------------------------------------------------
+    # Commandline overrides
+    #-----------------------------------------------------------------
+    # These are stored in a temporary dictionary so that they are not
+    # written to the config file when the board's configuration is
+    # dumped, with extraction, for example
+    #-----------------------------------------------------------------
+    config.tmp = {}
+    config.tmp['no-layer-index'] = (cmdline_args.no_layer_index or
+                                    config.brd['config'].get('no-layer-index') or
+                                    False)
+    config.tmp['no-flashes'] = (cmdline_args.no_flashes or
+                                config.brd['config'].get('no-flashes') or
+                                False)
+    config.tmp['no-drill-index'] = (cmdline_args.no_drill_index or
+                                    config.brd['config'].get('no-drill-index') or
+                                    False)
+
+    # The override for not placing documentation can come from three places:
+    # 1. Command-line argument
+    # 2. Layer-control
+    # 3. Board config
+    # If any of them is set then the documentation won't be placed
+    config.brd['layer-control']['documentation']['place']= (
+        (not cmdline_args.no_docs) and
+        (not config.brd['config'].get('no-docs')) and
+        config.brd['layer-control']['documentation']['place'])
+
+    # Define Gerber setting from board's config or defaults
+    try:
+        tmp = config.brd['gerber']
+    except:
+        config.brd['gerber'] = {}
+    gd = config.brd['gerber']    
+    gd['decimals'] = config.brd['gerber'].get('decimals') or 6
+    gd['digits'] = config.brd['gerber'].get('digits') or 6
+    gd['steps-per-segment'] = config.brd['gerber'].get('steps-per-segment') or 100
+    gd['min-segment-length'] = config.brd['gerber'].get('min-segment-length') or 0.05
+
+    # Inkscape inverts the 'y' axis for some historical reasons.
+    # This means that we need to invert it as well. This should
+    # be the only place this inversion happens so it's easy to
+    # control if things change.
+    config.cfg['invert-y'] = -1
 
     return
 
