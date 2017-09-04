@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
 import os
+import sys
 import json
 import argparse
 
@@ -404,6 +405,11 @@ def main():
     # Check if build directory exists; if not, create
     build_dir = os.path.join(config.cfg['base-dir'], config.cfg['locations']['build'])
     utils.create_dir(build_dir)
+
+    # Add board specific extensions directory to import search path
+    extpath = os.path.realpath(os.path.abspath(os.path.join(config.cfg['base-dir'], 'extensions')))
+    if extpath not in sys.path:
+        sys.path.insert(0, extpath)
 
     # Renumber refdefs and dump board config file
     if cmdline_args.renumber is not False:
