@@ -5,6 +5,7 @@ import datetime
 import copy
 import sys
 from lxml import etree as et
+import importlib
 
 import pcbmode.config as config
 from . import messages as msg
@@ -969,10 +970,47 @@ and is maintained by Boldport
         # Store components here
         components = []
 
+        # Check whether we have any procedural component definitions
+        for refdef in components_dict.keys ():
+            if components_dict[refdef].has_key ("procfunc"):
+                # Extract details about producedure
+                funcdef = components_dict[refdef]["procfunc"]
+                funcname = funcdef["name"]
+                funcargs = funcdef.get ("args", [])
+
+                # Try to import file with the name of the function from the
+                # extensions folder underneath the board folder
+                try:
+                    extlib = importlib.import_module (funcname)
+                except:
+                     msg.error("Couldn't open extension file '%s.py' in 'extensions' folder." % (funcname))
+
+                # Try to extract the function with specified name from the
+                # imported module
+                try:
+                    extfunc = getattr (extlib, funcname)
+                except:
+                     msg.error("Extension file '%s.py' does not contain a '%s' function." % (funcname, funcname))
+
+                # Execute the function with the specified arguments
+                try:
+                    proccomponents = extfunc (*funcargs)
+                except TypeError as e:
+                    msg.error("Number of arguments mismatch in extension function: %s." % (e))
+
+                # Remove procedural function placeholder component
+                del components_dict[refdef]
+
+                # Update components dictionary with generated components dictionary
+                try:
+                    components_dict.update (proccomponents)
+                except:
+                    msg.error("Updating components dictionary failed, maybe '%s' did not return a dictionary?" % (funcname))
+
         # Get shapes for each component definition
         for refdef in components_dict:
             component_dict = components_dict[refdef]
-            
+
             # Show or hide the component.
             # This will still account the component for the BoM
             show = component_dict.get('show', True)
