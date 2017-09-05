@@ -994,7 +994,12 @@ and is maintained by Boldport
 
                 # Execute the function with the specified arguments
                 try:
-                    proccomponents = extfunc (*funcargs)
+                    # If a JSON dict was specified let's use that instead of
+                    # decomposing into a list
+                    if isinstance (funcargs, dict):
+                        proccomponents = extfunc (funcargs)
+                    else:
+                        proccomponents = extfunc (*funcargs)
                 except TypeError as e:
                     msg.error("Number of arguments mismatch in extension function: %s." % (e))
 
